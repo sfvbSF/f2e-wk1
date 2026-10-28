@@ -1,0 +1,366 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Fhtagn Ring</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=VT323&display=swap">
+<style>
+/* Layout: one full-screen stage — claws at the sides, a ring of 12 cards around an offering dish, HUD pinned to the corners */
+:root{
+  --bg:#1c1b1b; --ink:#d8cec5; --mid:#8e857e; --dim:#4a4542; --deep:#121111;
+  --f-ui:"Pixelify Sans","Courier New",monospace; --f-num:"VT323","Courier New",monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);overflow:hidden;margin:0;
+  -webkit-user-select:none;user-select:none}
+#stage{position:relative;height:100%;width:100%;overflow:hidden;touch-action:none;cursor:grab}
+#stage.drag{cursor:grabbing}
+#claws{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none}
+#dish{position:absolute;image-rendering:pixelated;pointer-events:none}
+.card{position:absolute;left:0;top:0;background:var(--deep);border:3px solid var(--ink);
+  box-shadow:0 0 0 2px var(--deep),0 0 0 4px var(--dim);padding:4px;will-change:transform;cursor:pointer}
+.card canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+.card::before,.card::after{content:"";position:absolute;width:6px;height:6px;background:var(--ink);top:-5px;left:-5px;box-shadow:calc(var(--w) - 2px) 0 0 var(--ink)}
+.card::after{top:auto;bottom:-5px}
+.card:focus-visible{outline:3px dashed var(--ink);outline-offset:6px}
+.card .tag{position:absolute;top:-14px;right:-6px;font:600 12px/1 var(--f-ui);background:var(--ink);color:var(--deep);padding:2px 4px}
+
+/* HUD */
+.hud{position:absolute;display:flex;gap:8px;align-items:center;z-index:50}
+.tl{top:calc(10px + env(safe-area-inset-top,0px));left:max(12px,env(safe-area-inset-left,0px));flex-direction:column;align-items:flex-start;gap:6px}
+.row{display:flex;gap:6px;align-items:center}
+.lvl{font:22px/1 var(--f-num);border:2px solid var(--ink);padding:0 4px;background:var(--deep)}
+.bar{display:flex;gap:2px;border:2px solid var(--ink);padding:2px;border-radius:0 8px 8px 0;background:var(--deep)}
+.bar i{display:block;width:12px;height:12px;background:var(--dim)}
+.bar i.on{background:var(--ink)}
+.spd button{font:600 13px/1 var(--f-ui);color:var(--ink);background:var(--dim);border:2px solid var(--ink);padding:3px 8px;border-radius:8px;cursor:pointer}
+.spd button.on{background:var(--ink);color:var(--deep)}
+.spd button:focus-visible,.fh:focus-visible,.x:focus-visible{outline:2px dashed var(--ink);outline-offset:2px}
+.tr{top:calc(10px + env(safe-area-inset-top,0px));right:max(14px,env(safe-area-inset-right,0px))}
+.bl{bottom:calc(12px + env(safe-area-inset-bottom,0px));left:max(12px,env(safe-area-inset-left,0px))}
+.bl .hp{display:flex;flex-direction:column;gap:2px;font:20px/1 var(--f-num)}
+.hpbar{width:150px;height:12px;border:2px solid var(--ink);border-radius:6px;background:var(--deep);overflow:hidden}
+.hpbar b{display:block;height:100%;background:var(--ink);width:47%}
+.bc{bottom:calc(10px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);gap:14px}
+.stat{font:28px/1 var(--f-num);color:var(--mid);text-align:center}
+.fh{font:600 18px/1 var(--f-ui);color:var(--deep);background:var(--ink);border:3px solid var(--deep);box-shadow:0 0 0 3px var(--ink);
+  padding:12px 22px;border-radius:40% 40% 46% 46%/60% 60% 40% 40%;cursor:pointer}
+.fh:active{transform:translateY(2px)}
+.br{bottom:calc(14px + env(safe-area-inset-bottom,0px));right:max(16px,env(safe-area-inset-right,0px));font:26px/1 var(--f-num)}
+.hint{position:absolute;left:50%;transform:translateX(-50%);white-space:normal;top:calc(18px + env(safe-area-inset-top,0px));font:18px/1 var(--f-num);text-align:center;max-width:calc(100% - 32px);color:var(--mid);z-index:40;transition:opacity .6s}
+
+/* File window */
+#modal{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:rgba(10,9,9,.78);
+  padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.win{width:min(640px,100%);max-height:calc(100dvh - 40px);display:flex;flex-direction:column;background:var(--deep);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--dim);min-width:0}
+.tb{display:flex;align-items:center;gap:8px;background:var(--ink);color:var(--deep);padding:6px 8px;font-weight:600}
+.tb span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.x{font:600 16px/1 var(--f-ui);background:var(--deep);color:var(--ink);border:0;width:26px;height:26px;cursor:pointer}
+.files{padding:14px;display:flex;gap:14px;flex-wrap:wrap;border-bottom:2px solid var(--dim)}
+.file{display:flex;flex-direction:column;align-items:center;gap:6px;width:110px;background:none;border:2px solid transparent;color:var(--ink);font:13px/1.2 var(--f-ui);padding:6px;cursor:pointer;text-align:center}
+.file.sel,.file:hover{border-color:var(--ink)}
+.file canvas{width:48px;height:56px;image-rendering:pixelated}
+.meta{font:18px/1 var(--f-num);color:var(--mid);padding:10px 14px 0}
+.doc{overflow:auto;padding:10px 14px 14px;min-height:0}
+.doc p{font:17px/1.55 var(--f-num);font-size:19px;margin:0 0 12px;max-width:65ch;-webkit-user-select:text;user-select:text}
+.empty{padding:28px 14px;font:20px/1.4 var(--f-num);color:var(--mid);text-align:center}
+.acts{display:flex;gap:8px;padding:10px 14px;border-top:2px solid var(--dim)}
+.acts button{font:600 14px/1 var(--f-ui);background:var(--dim);color:var(--ink);border:2px solid var(--ink);padding:8px 12px;cursor:pointer}
+.acts button:focus-visible{outline:2px dashed var(--ink)}
+@media (max-width:640px){
+  .hpbar{width:90px}.bar i{width:8px}.spd button{padding:3px 6px;font-size:11px}
+  .stat{font-size:22px}.fh{padding:10px 16px;font-size:15px}.bc{gap:8px}
+  .bl .hp span:last-child{display:none}
+  .bc .stat{display:none}.bc{left:auto;right:max(56px,env(safe-area-inset-right,0px));transform:none}
+  .hint{font-size:15px;top:calc(84px + env(safe-area-inset-top,0px))}
+}
+@media (prefers-reduced-motion:reduce){.hint{transition:none}}
+</style>
+
+<div id="stage" aria-label="Ring of 12 cards. Scroll or drag to turn it.">
+  <canvas id="claws"></canvas>
+  <canvas id="dish"></canvas>
+  <div id="ring"></div>
+
+  <div class="hud tl">
+    <div class="row"><span class="lvl">5</span><div class="bar" id="xp"></div></div>
+    <div class="row spd" id="spd">
+      <button data-s="0.15" aria-label="Spin slow">▸</button>
+      <button data-s="0.5" aria-label="Spin fast">▸▸</button>
+      <button data-s="1.2" aria-label="Spin faster">▸▸▸</button>
+      <button data-s="3" aria-label="Spin max">MAX</button>
+    </div>
+  </div>
+  <div class="hud tr"><canvas id="gear" width="12" height="12" style="width:28px;height:28px;image-rendering:pixelated"></canvas></div>
+  <div class="hud bl">
+    <canvas id="flame" width="12" height="14" style="width:36px;height:42px;image-rendering:pixelated"></canvas>
+    <div class="hp"><span>19</span><div class="hpbar"><b></b></div><span>142/300</span></div>
+  </div>
+  <div class="hud bc">
+    <div class="stat">3</div><div class="stat">15</div>
+    <button class="fh" id="fh">Fhtagn!</button>
+    <div class="stat">2</div>
+  </div>
+  <div class="hud br" title="Slots turned"><span id="turns">0</span></div>
+  <div class="hint" id="hint">scroll or drag to turn · click a box to open</div>
+</div>
+
+<div id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="wt">
+  <div class="win">
+    <div class="tb"><span id="wt">Box</span><button class="x" id="close" aria-label="Close">×</button></div>
+    <div id="wbody"></div>
+  </div>
+</div>
+
+<script>
+const FILE = {name:"text-to-word (4)", ext:".doc", size:"3.4 KB", html:"\"On Twitter, I've been looking at more fan art for Harry Potter. Or more specifically, angsty drawings of a feminized Draco Malfoy, whom I'm going to call Dracina for this video. While the vast majority of this art trend has depicted her as a misunderstood adorable tsundere, I've grown fascinated by the ones that show the more tragic aspects of her character and circumstances. There's not that many of these, but there's a few drawings that lean more into Dracina's sneering, elitist attitude. Maybe we forgot, but she was actively a horrible person. She constantly belittled Hermione, Neville, Ron, and even Hagrid, literally one of the sweetest people in that world. Worse yet, a large part of those insults hit at the core of those characters' heritage or class. So, how could a supremacist character like that be depicted as anything other than disgusting? Well, this is fan fiction, and Dracina has a different story arc, but I'll get to that in a bit. <br><br>Other artists that I came across depicted her getting rejected by Harry, which feels completely deserved. You can't be a terrible person and expect to be liked, that's just not how that works. And while I don't think that's the context in which these artworks were made, I like this interpretation. The idea that the lack of goodwill Dracina's accumulated up to this point has finally caught up to her feels like a natural progression. Probably the most impactful drawings of that rejection takes place in a bathroom fight. Harry confronts a scared Dracina about cursing Katie Bell, and after confirming her guilt, he shoots her with a Sectumsempra. And my god, the drawings of this moment are so good. What I like about what these drawings highlight is that it isn't the pain from the spell that devastates her, but rather the thought that Harry completely and utterly despises her. It's such a perfect climax for these characters to have so many emotions of love, and hate, and confusion all swirling together. <br><br>And to finally show her at her lowest, people made artworks of her essentially trapped with Voldemort. She's dug herself too deep, and now she belongs to the most vile creature in all of Harry Potter, and it terrifies her. Up to this point, the storyline for Dracina these drawings have told is one about a girl in love at odds with her supremacist attitude and upbringing. So when Harry has a duel to the death with Lord Voldemort, what does she do? Well, in these drawings, she chooses love. Dracina and Harry join together to fight back, and the fucking energy in every single one of these pieces has this explosive, euphoric release to them. While I felt like Draco Malfoy never got a full redemption arc, it's clear that these artists wanted to give Dracina one. And the best part is I think it works. For her to symbolically reject everything she was raised to believe in, to choose Harry, and save the very same people she looked down on all her life. Her story is one of personal change and an acceptance of love, and I genuinely think that's beautiful. Anyways, awesome fan art. I can't believe this many people came together for Harry Potter of all things, I never would have imagined.\""};
+const N = 12, STEP = Math.PI*2/N;
+const stage = document.getElementById('stage'), ringEl = document.getElementById('ring');
+const INK='#d8cec5', MID='#8e857e', DIM='#4a4542', DEEP='#121111';
+
+/* ---------- pixel art helpers ---------- */
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function sprite(cv, seed){ // symmetric glyph, like a cursed idol
+  const W=20,H=24; cv.width=W; cv.height=H; const c=cv.getContext('2d'), r=rng(seed*977+13);
+  c.fillStyle=DEEP; c.fillRect(0,0,W,H);
+  const g=[]; for(let y=0;y<H;y++){g[y]=[];for(let x=0;x<W/2;x++){
+    const dx=(W/2-x)/(W/2), dy=Math.abs(y-H*0.52)/(H/2);
+    g[y][x]= r() < 0.78-(dx*0.55+dy*0.6) ? 1 : 0;}}
+  for(let y=0;y<H;y++)for(let x=0;x<W/2;x++){ if(!g[y][x])continue;
+    const edge=!(g[y-1]?.[x]&&g[y+1]?.[x]&&g[y][x-1]);
+    c.fillStyle= edge?INK:(r()<.25?MID:INK);
+    c.fillRect(x,y,1,1); c.fillRect(W-1-x,y,1,1);}
+  // eyes
+  const ey=Math.floor(H*0.38+r()*3), ex=Math.floor(W/2-3-r()*2);
+  c.fillStyle=DEEP; c.fillRect(ex,ey,2,2); c.fillRect(W-ex-2,ey,2,2);
+  if(r()<.5){c.fillRect(W/2-2,Math.floor(H*.66),4,1)}
+}
+function docGlyph(cv){
+  const art=[
+"....................",
+"...XXXXXXXXXX.......",
+"...X........XX......",
+"...X........X.X.....",
+"...X........X..X....",
+"...X........XXXXX...",
+"...X............X...",
+"...X..XXXXXXXX..X...",
+"...X............X...",
+"...X..XXXXXXXXX.X...",
+"...X............X...",
+"...X..XXXXXXX...X...",
+"...X............X...",
+"...X..XXXXXXXXX.X...",
+"...X............X...",
+"...X..XXXX.XXXX.X...",
+"...X............X...",
+"...X..XX..XX....X...",
+"...X..X.X.X.X...X...",
+"...X..XX..XX....X...",
+"...X............X...",
+"...XXXXXXXXXXXXXX...",
+"....................",
+"...................."];
+  cv.width=20; cv.height=24; const c=cv.getContext('2d');
+  c.fillStyle=DEEP;c.fillRect(0,0,20,24);
+  art.forEach((row,y)=>[...row].forEach((ch,x)=>{ if(ch==='X'){c.fillStyle=INK;c.fillRect(x,y,1,1)} else if(x>3&&x<17&&y>1&&y<21&&!(y<6&&x>12)){c.fillStyle=DIM;c.fillRect(x,y,1,1)} }));
+}
+
+/* ---------- cards ---------- */
+const cards=[];
+for(let i=0;i<N;i++){
+  const d=document.createElement('div'); d.className='card'; d.tabIndex=0; d.setAttribute('role','button');
+  const cv=document.createElement('canvas'); d.appendChild(cv);
+  const hasFile = i===0;
+  if(hasFile){ docGlyph(cv); const t=document.createElement('span'); t.className='tag'; t.textContent='1'; d.appendChild(t);
+    d.setAttribute('aria-label','Box 1, contains '+FILE.name); }
+  else { sprite(cv,i); d.setAttribute('aria-label','Box '+(i+1)+', empty'); }
+  d.dataset.i=i; ringEl.appendChild(d); cards.push({el:d,i,hasFile});
+}
+
+/* ---------- geometry ---------- */
+let W,H,cx,cy,rx,ry,cw,ch;
+function layout(){
+  W=stage.clientWidth; H=stage.clientHeight;
+  const port = H>W;
+  cx=W/2; cy=H*(port?0.47:0.46);
+  rx=Math.min(W*(port?0.37:0.27), H*0.66); ry=Math.min(H*(port?0.26:0.33), rx*(port?1.05:0.82));
+  cw=Math.max(50,Math.min(rx*0.3, ry*0.36, 104)); ch=cw*1.2;
+  cards.forEach(c=>{c.el.style.width=cw+'px';c.el.style.height=ch+'px';c.el.style.setProperty('--w',cw+'px')});
+  drawDish(); drawClaws();
+}
+
+/* ---------- rotation state ---------- */
+// screen y points down, so increasing angle = clockwise
+let angle=0, target=0, velo=0, auto=0, dragging=false, lastInput=0, slotsTurned=0, lastSlot=0;
+function render(){
+  cards.forEach(c=>{
+    const a = Math.PI/2 + c.i*STEP + angle; // card 0 starts at the front (bottom)
+    const x = cx + Math.cos(a)*rx, y = cy + Math.sin(a)*ry;
+    const depth=(Math.sin(a)+1)/2;            // 1 = front
+    const s=0.8+depth*0.32;
+    c.el.style.transform=`translate(${x-cw/2}px,${y-ch/2}px) scale(${s})`;
+    c.el.style.zIndex=10+Math.round(depth*20);
+    c.el.style.filter=`brightness(${0.6+depth*0.4})`;
+  });
+}
+function tick(){
+  const now=performance.now();
+  if(auto){ target+=auto*0.016; }
+  else if(!dragging && now-lastInput>180){ target=Math.round(target/STEP)*STEP; } // snap to slot
+  angle += (target-angle)*(dragging?1:0.14);
+  const slot=Math.round(angle/STEP); if(slot!==lastSlot){slotsTurned+=Math.abs(slot-lastSlot);lastSlot=slot;document.getElementById('turns').textContent=slotsTurned;}
+  render(); requestAnimationFrame(tick);
+}
+
+/* mouse wheel → turn (down = clockwise) */
+stage.addEventListener('wheel',e=>{
+  e.preventDefault(); stopAuto();
+  let d=e.deltaY||e.deltaX; if(e.deltaMode===1)d*=33;
+  d=Math.max(-120,Math.min(120,d));
+  target+=d*0.0045; lastInput=performance.now(); hideHint();
+},{passive:false});
+
+/* drag (finger or mouse) → turn around the centre */
+let startA=0, moved=0, downCard=null, pid=null;
+const ang=(e)=>Math.atan2(e.clientY-cy, e.clientX-cx);
+stage.addEventListener('pointerdown',e=>{
+  if(e.target.closest('.hud')) return;
+  pid=e.pointerId; dragging=true; moved=0; startA=ang(e); stopAuto();
+  downCard=e.target.closest('.card'); stage.classList.add('drag');
+  try{stage.setPointerCapture(pid)}catch(_){}
+});
+stage.addEventListener('pointermove',e=>{
+  if(!dragging||e.pointerId!==pid)return;
+  const a=ang(e); let d=a-startA; if(d>Math.PI)d-=2*Math.PI; if(d<-Math.PI)d+=2*Math.PI;
+  startA=a; moved+=Math.abs(d); target+=d; angle=target; lastInput=performance.now(); if(moved>0.05)hideHint();
+});
+function endDrag(e){
+  if(!dragging||e.pointerId!==pid)return;
+  dragging=false; stage.classList.remove('drag'); lastInput=performance.now();
+  if(moved<0.04 && downCard) openBox(cards[+downCard.dataset.i]);
+  downCard=null;
+}
+stage.addEventListener('pointerup',endDrag); stage.addEventListener('pointercancel',endDrag);
+ringEl.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();const c=e.target.closest('.card');if(c)openBox(cards[+c.dataset.i]);}
+  if(e.key==='ArrowRight'){target+=STEP} if(e.key==='ArrowLeft'){target-=STEP} });
+
+/* HUD controls */
+const spdBtns=[...document.querySelectorAll('#spd button')];
+spdBtns.forEach(b=>b.onclick=()=>{
+  const on=b.classList.contains('on'); spdBtns.forEach(x=>x.classList.remove('on'));
+  if(on){auto=0}else{b.classList.add('on');auto=+b.dataset.s}
+});
+function stopAuto(){ if(auto){auto=0;spdBtns.forEach(x=>x.classList.remove('on'))} }
+document.getElementById('fh').onclick=()=>{stopAuto();target=Math.round(target/STEP)*STEP+STEP;lastInput=performance.now();hideHint()};
+let hintGone=false; function hideHint(){ if(hintGone)return; hintGone=true; setTimeout(()=>document.getElementById('hint').style.opacity=0,1200) }
+
+/* ---------- box window ---------- */
+const modal=document.getElementById('modal'), wbody=document.getElementById('wbody');
+function esc(s){return s.replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}
+function openBox(c){
+  document.getElementById('wt').textContent='Box '+(c.i+1);
+  if(!c.hasFile){ wbody.innerHTML='<div class="empty">This box is empty.<br>Nothing sleeps here yet.</div>'; }
+  else{
+    wbody.innerHTML=`<div class="files"><button class="file sel" id="f0"><canvas></canvas><span>${esc(FILE.name)}${FILE.ext}</span></button></div>
+      <div class="meta">Word document · ${FILE.size}</div><div class="doc" id="doc"></div>
+      <div class="acts"><button id="copy">Copy text</button></div>`;
+    docGlyph(wbody.querySelector('.file canvas'));
+    const tmp=document.createElement('div'); tmp.innerHTML=FILE.html; const txt=tmp.textContent;
+    const paras=FILE.html.split(/<br\s*\/?>\s*<br\s*\/?>/i).map(h=>{const t=document.createElement('div');t.innerHTML=h;return t.textContent.trim()}).filter(Boolean);
+    document.getElementById('doc').innerHTML=paras.map(p=>`<p>${esc(p)}</p>`).join('');
+    const cb=document.getElementById('copy');
+    cb.onclick=()=>{ navigator.clipboard.writeText(txt).then(()=>cb.textContent='Copied',()=>{const r=document.createRange();r.selectNodeContents(document.getElementById('doc'));const s=getSelection();s.removeAllRanges();s.addRange(r);cb.textContent='Text selected, press Ctrl+C'}) };
+  }
+  modal.hidden=false; document.getElementById('close').focus();
+}
+function closeBox(){modal.hidden=true}
+document.getElementById('close').onclick=closeBox;
+modal.addEventListener('click',e=>{if(e.target===modal)closeBox()});
+addEventListener('keydown',e=>{if(e.key==='Escape')closeBox()});
+
+/* ---------- scenery: dish, claws, icons ---------- */
+function quantize(ctx,w,h){
+  const d=ctx.getImageData(0,0,w,h),p=d.data;
+  for(let k=0;k<p.length;k+=4){ if(p[k+3]<90){p[k+3]=0;continue}
+    const v=p[k]; const col=v>170?[216,206,197]:v>90?[142,133,126]:v>40?[74,69,66]:[18,17,17];
+    p[k]=col[0];p[k+1]=col[1];p[k+2]=col[2];p[k+3]=255;}
+  ctx.putImageData(d,0,0);
+}
+function drawDish(){
+  const cv=document.getElementById('dish'); const PX=3;
+  const w=Math.round(rx*0.9/PX), h=Math.round(ry*0.36/PX);
+  cv.width=w; cv.height=h; cv.style.width=w*PX+'px'; cv.style.height=h*PX+'px';
+  cv.style.left=(cx-w*PX/2)+'px'; cv.style.top=(cy-h*PX/2)+'px';
+  const c=cv.getContext('2d');
+  c.fillStyle='#1d1c1c'; c.strokeStyle='#d8cec5'; c.lineWidth=1.4;
+  c.beginPath(); c.ellipse(w/2,h/2,w/2-2,h/2-2,0,0,Math.PI*2); c.fill(); c.stroke();
+  // pool
+  c.fillStyle='#8e857e'; c.beginPath(); c.ellipse(w/2,h*0.62,w*0.36,h*0.24,0,0,Math.PI*2); c.fill();
+  c.fillStyle='#d8cec5'; c.beginPath(); c.ellipse(w/2,h*0.68,w*0.3,h*0.14,0,0,Math.PI*2); c.fill();
+  // little spires
+  c.fillStyle='#d8cec5';
+  for(let k=0;k<9;k++){const x=w*0.18+k*w*0.08, hh=h*(0.18+((k*37)%5)*0.05);
+    c.beginPath();c.moveTo(x-2,h*0.55);c.lineTo(x,h*0.55-hh);c.lineTo(x+2,h*0.55);c.fill();}
+  quantize(c,w,h);
+}
+function finger(c,pts,w0){
+  // draw a tapered bony finger along points, then a claw at the tip
+  for(let k=0;k<pts.length-1;k++){
+    const [x1,y1]=pts[k],[x2,y2]=pts[k+1]; const w=w0*(1-k/(pts.length))+1;
+    c.strokeStyle='#121111'; c.lineWidth=w+2; c.lineCap='round';
+    c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();
+  }
+  for(let k=0;k<pts.length-1;k++){
+    const [x1,y1]=pts[k],[x2,y2]=pts[k+1]; const w=w0*(1-k/(pts.length))+1;
+    c.strokeStyle='#cfc5bc'; c.lineWidth=w; c.lineCap='round';
+    c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();
+    c.fillStyle='#121111'; c.fillRect(x2-0.5,y2-0.5,1.5,1.5); // knuckle line
+  }
+  const [a,b]=pts[pts.length-2],[x,y]=pts[pts.length-1]; const dx=x-a,dy=y-b,L=Math.hypot(dx,dy)||1;
+  c.fillStyle='#121111'; c.beginPath(); c.moveTo(x-dy/L*2,y+dx/L*2); c.lineTo(x+dx/L*9,y+dy/L*9); c.lineTo(x+dy/L*2,y-dx/L*2); c.fill();
+}
+function hand(c,ox,oy,s,flip){
+  c.save(); c.translate(ox,oy); c.scale(flip?-s:s,s);
+  // palm
+  c.fillStyle='#cfc5bc'; c.strokeStyle='#121111'; c.lineWidth=2;
+  c.beginPath(); c.moveTo(-60,-4); c.lineTo(-20,-14); c.quadraticCurveTo(4,-16,8,-6); c.quadraticCurveTo(12,8,2,18); c.lineTo(-60,14); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle='#121111'; for(let k=0;k<3;k++){c.fillRect(-14+k*6,-6+k*4,8,1)}
+  finger(c,[[4,-10],[24,-28],[46,-34],[64,-30],[76,-20]],5);
+  finger(c,[[8,-2],[32,-10],[56,-6],[72,4]],5);
+  finger(c,[[8,6],[30,10],[50,20],[62,34]],4);
+  finger(c,[[2,14],[18,26],[30,40],[36,54]],3);
+  finger(c,[[-12,14],[-4,32],[10,44],[24,48]],4); // thumb
+  // dangling cord with a pendant
+  c.strokeStyle='#8e857e'; c.lineWidth=1; c.beginPath(); c.moveTo(-20,-10); c.quadraticCurveTo(-26,30,-18,56); c.stroke();
+  c.fillStyle='#cfc5bc'; c.beginPath(); c.ellipse(-18,61,3,5,0,0,Math.PI*2); c.fill(); c.stroke();
+  c.restore();
+}
+function drawClaws(){
+  const cv=document.getElementById('claws'); const PX=3;
+  const w=Math.ceil(W/PX), h=Math.ceil(H/PX); cv.width=w; cv.height=h;
+  const c=cv.getContext('2d'); c.clearRect(0,0,w,h);
+  if(W<560) { c.globalAlpha=1; }
+  const s=Math.min(h/150, w/260)*0.62;
+  const narrow=W<700;
+  const off = narrow? -18*s : 0;
+  hand(c, 14*s+off, h*0.4, s, false);
+  hand(c, w-14*s-off, h*0.4, s, true);
+  quantize(c,w,h);
+  if(narrow){ c.globalCompositeOperation='destination-in'; c.fillStyle='rgba(0,0,0,.45)'; c.fillRect(0,0,w,h); c.globalCompositeOperation='source-over'; }
+}
+function icons(){
+  const g=document.getElementById('gear').getContext('2d'); const gm=["....XXXX....","..XX.XX.XX..",".X..XXXX..X.",".XXX....XXX.","XX.X....X.XX","XX.X.XX.X.XX","XX.X.XX.X.XX","XX.X....X.XX",".XXX....XXX.",".X..XXXX..X.","..XX.XX.XX..","....XXXX...."];
+  gm.forEach((r,y)=>[...r].forEach((ch,x)=>{if(ch==='X'){g.fillStyle=INK;g.fillRect(x,y,1,1)}}));
+  const f=document.getElementById('flame').getContext('2d'); const fm=["......X.....",".....XX.....","....XXX..X..","...XXXX.XX..","..XXX.XXXX..","..XX..XXXXX.",".XX....XXXX.",".XX.X.X.XXX.",".XX.....XXX.","..XX.XX.XX..","..XXX..XXX..","...XXXXXX...","....XXXX....","............"];
+  fm.forEach((r,y)=>[...r].forEach((ch,x)=>{if(ch==='X'){f.fillStyle=INK;f.fillRect(x,y,1,1)}}));
+  const xp=document.getElementById('xp'); for(let k=0;k<10;k++){const i=document.createElement('i'); if(k<1)i.className='on'; xp.appendChild(i)}
+}
+
+icons(); layout(); render(); requestAnimationFrame(tick);
+addEventListener('resize',()=>{layout();render()});
+document.fonts&&document.fonts.ready.then(()=>render());
+</script>
+
+</body></html>
